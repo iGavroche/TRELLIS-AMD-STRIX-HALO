@@ -4,16 +4,17 @@
 
 This is a fork of [Microsoft TRELLIS](https://github.com/microsoft/TRELLIS) modified to run on AMD consumer GPUs (tested on RX 7800 XT with ROCm 6.4.2).
 
-![TRELLIS on AMD GPU](docs/amd_success.png)
-
 ## Features
 
-| Feature | Status |
-|---------|--------|
-| ✅ Gaussian Splatting | Working (145+ it/s) |
-| ✅ Gaussian Export (.ply) | Working |
-| ✅ Mesh Extraction | Working |
-| ✅ GLB Export with Textures | Working |
+| Feature | Status | Timing |
+|---------|--------|--------|
+| ✅ 3D Model Generation | Working | ~45 seconds |
+| ✅ Gaussian Splatting | Working (145+ it/s) | ~30 seconds |
+| ✅ Gaussian Export (.ply) | Working | Instant |
+| ✅ Mesh Extraction | Working | ~60 seconds |
+| ✅ GLB Export with Textures | Working | **5-10 minutes** |
+
+> **⚠️ GLB Export Takes 5-10 Minutes**: This is normal! The console will show progress through 5 steps. Your system will be under heavy load during texture baking - this is expected.
 
 ## Requirements
 
@@ -42,25 +43,43 @@ Then open http://localhost:7860 in your browser.
 
 ## What's Different from Original TRELLIS?
 
-### nvdiffrast-hip Modifications
-- Added `CoarseRasterSimple.inl` - AMD-safe coarse rasterizer avoiding warp-level sync
-- Added HIP warp intrinsic compatibility macros
-- Modified kernel entry points to use simplified implementation
+### Custom Extensions (AMD-compatible)
 
-### diff-gaussian-rasterization Modifications
-- **Manual HIP build** via `build_hip.sh` (bypasses broken CUDAExtension)
-- Fixed `DuplicateWithKeys` kernel buffer initialization
-- Fixed C++ ABI compatibility for ROCm PyTorch
+| Extension | Modification |
+|-----------|-------------|
+| **nvdiffrast-hip** | AMD-safe coarse rasterizer, HIP warp intrinsic macros |
+| **diff-gaussian-rasterization** | Manual HIP build script, buffer initialization fixes |
+| **torchsparse** | Built with `FORCE_CUDA=1` for HIP GPU backend |
 
-### TRELLIS Application Modifications
-- Switched to OpenGL rasterization backend
-- Disabled `fill_holes` in mesh postprocessing (avoids broken visibility check)
+### Application Modifications
+- Switched to OpenGL rasterization backend (avoids HIP rasterizer bugs)
+- Disabled `fill_holes` in mesh postprocessing (avoids visibility check issues)
+- Added progress logging for GLB export
+
+## Processing Time Reference
+
+| Operation | Expected Time | Notes |
+|-----------|--------------|-------|
+| 3D Generation (Sampling) | ~45s | 12 steps of diffusion |
+| Gaussian Export | Instant | Saves .ply file |
+| GLB Export | **5-10 min** | Heavy CPU+GPU load is normal |
+
+The GLB export shows progress in console:
+```
+[GLB Export] Starting GLB extraction (this takes 5-10 minutes)...
+[GLB Export] Step 1/5: Mesh postprocessing...
+[GLB Export] Step 2/5: UV parametrization...
+[GLB Export] Step 3/5: Rendering multiview observations (100 views)...
+[GLB Export] Step 4/5: Baking texture (2500 optimization steps)...
+[GLB Export] Step 5/5: Finalizing GLB mesh...
+[GLB Export] Complete!
+```
 
 ## Known Limitations
 
-1. **Mesh Preview**: The mesh preview may show grey. The actual mesh extraction and GLB export work correctly.
-2. **fill_holes Disabled**: Small holes in meshes may not be filled.
-3. **Performance**: Simplified coarse rasterizer is slower than NVIDIA-optimized version.
+1. **Mesh Preview**: May show grey - the actual export works correctly
+2. **fill_holes Disabled**: Small holes in meshes may not be filled
+3. **Performance**: Simplified coarse rasterizer is slower than NVIDIA-optimized version
 
 ## Troubleshooting
 
@@ -72,6 +91,9 @@ Check that `fill_holes=False` is set in `trellis/utils/postprocessing_utils.py`.
 
 ### CUDA Symbol Errors  
 Make sure you're using the AMD-modified extensions in this repo, not the original CUDA ones.
+
+### torchsparse "no attribute" Error
+Rebuild with: `cd extensions/torchsparse && CUDA_HOME=/opt/rocm FORCE_CUDA=1 pip install . --no-build-isolation`
 
 ## Credits
 

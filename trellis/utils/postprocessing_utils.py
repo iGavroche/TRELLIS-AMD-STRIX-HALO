@@ -419,11 +419,12 @@ def to_glb(
         debug (bool): Whether to print debug information.
         verbose (bool): Whether to print progress.
     """
+    print("[GLB Export] Starting GLB extraction (this takes 5-10 minutes)...")
+    
     vertices = mesh.vertices.cpu().numpy()
     faces = mesh.faces.cpu().numpy()
     
-    # AMD DEBUG: Check mesh size before postprocessing
-    print(f"[AMD DEBUG] Before postprocess_mesh: vertices={vertices.shape}, faces={faces.shape}")
+    print(f"[GLB Export] Step 1/5: Mesh postprocessing (vertices={vertices.shape[0]}, faces={faces.shape[0]})...")
     
     # mesh postprocess
     # AMD HIP FIX: Disable fill_holes because it uses rasterizer for visibility
@@ -442,17 +443,21 @@ def to_glb(
         verbose=verbose,
     )
     
-    # AMD DEBUG: Check mesh size after postprocessing
-    print(f"[AMD DEBUG] After postprocess_mesh: vertices={vertices.shape}, faces={faces.shape}")
+    print(f"[GLB Export] Step 2/5: UV parametrization (vertices={vertices.shape[0]}, faces={faces.shape[0]})...")
 
     # parametrize mesh
     vertices, faces, uvs = parametrize_mesh(vertices, faces)
 
+    print(f"[GLB Export] Step 3/5: Rendering multiview observations (100 views)...")
+    
     # bake texture
     observations, extrinsics, intrinsics = render_multiview(app_rep, resolution=1024, nviews=100)
     masks = [np.any(observation > 0, axis=-1) for observation in observations]
     extrinsics = [extrinsics[i].cpu().numpy() for i in range(len(extrinsics))]
     intrinsics = [intrinsics[i].cpu().numpy() for i in range(len(intrinsics))]
+    
+    print(f"[GLB Export] Step 4/5: Baking texture (2500 optimization steps)...")
+    
     texture = bake_texture(
         vertices, faces, uvs,
         observations, masks, extrinsics, intrinsics,
@@ -462,6 +467,8 @@ def to_glb(
     )
     texture = Image.fromarray(texture)
 
+    print(f"[GLB Export] Step 5/5: Finalizing GLB mesh...")
+    
     # rotate mesh (from z-up to y-up)
     vertices = vertices @ np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]])
     material = trimesh.visual.material.PBRMaterial(
@@ -470,6 +477,9 @@ def to_glb(
         baseColorFactor=np.array([255, 255, 255, 255], dtype=np.uint8)
     )
     mesh = trimesh.Trimesh(vertices, faces, visual=trimesh.visual.TextureVisuals(uv=uvs, material=material))
+    
+    print(f"[GLB Export] Complete! Mesh has {len(vertices)} vertices and {len(faces)} faces.")
+    
     return mesh
 
 
