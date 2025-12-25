@@ -1,5 +1,6 @@
 #!/bin/bash
 # TRELLIS-AMD Installation Script
+# One-click installer for AMD GPUs with ROCm
 # Tested on: AMD RX 7800 XT, ROCm 6.4.2, Ubuntu
 
 set -e
@@ -28,15 +29,18 @@ echo "Detected GPU: $GPU_ARCH"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
+echo ""
 echo "[1/7] Creating Python virtual environment..."
 if [ ! -d ".venv" ]; then
     python3 -m venv .venv
 fi
 source .venv/bin/activate
 
+echo ""
 echo "[2/7] Upgrading pip..."
 pip install --upgrade pip wheel setuptools
 
+echo ""
 echo "[3/7] Installing PyTorch for ROCm..."
 # Check if torch is already installed with ROCm
 if python3 -c "import torch; exit(0 if hasattr(torch.version, 'hip') else 1)" 2>/dev/null; then
@@ -45,40 +49,38 @@ else
     pip install torch torchvision --index-url https://download.pytorch.org/whl/rocm6.4
 fi
 
+echo ""
 echo "[4/7] Installing TRELLIS Python dependencies..."
 pip install -r requirements.txt
 
+echo ""
 echo "[5/7] Installing nvdiffrast-hip..."
 cd extensions/nvdiffrast-hip
 pip install . --no-build-isolation
 cd ../..
 
+echo ""
 echo "[6/7] Building diff-gaussian-rasterization (manual HIP build)..."
 cd extensions/diff-gaussian-rasterization
 chmod +x build_hip.sh
 ./build_hip.sh
 cd ../..
 
+echo ""
 echo "[7/7] Installing torchsparse..."
-# Try pip first, if that fails try from source
-if ! pip install torchsparse 2>/dev/null; then
-    echo "pip install torchsparse failed, you may need to install it manually"
-    echo "See: https://github.com/mit-han-lab/torchsparse"
-fi
+cd extensions/torchsparse
+pip install . --no-build-isolation
+cd ../..
 
 echo ""
 echo "=============================================="
 echo "  Installation Complete!"
 echo "=============================================="
 echo ""
-echo "If you encountered any errors during the build,"
-echo "make sure you have these system dependencies:"
-echo "  - ROCm 6.4+"
-echo "  - hipcc compiler"
-echo "  - Python development headers"
-echo ""
 echo "To run TRELLIS:"
+echo ""
 echo "  source .venv/bin/activate"
 echo "  ATTN_BACKEND=sdpa XFORMERS_DISABLED=1 SPARSE_BACKEND=torchsparse python app.py"
 echo ""
 echo "Then open http://localhost:7860 in your browser"
+echo ""
