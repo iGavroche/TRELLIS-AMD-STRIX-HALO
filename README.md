@@ -25,6 +25,21 @@ This is a fork of [Microsoft TRELLIS](https://github.com/microsoft/TRELLIS) modi
 
 ## Quick Start
 
+Install libsparsehash-dev(required for building torchsparse)
+
+
+Ubuntu/Debian:
+```bash
+sudo apt-get install libsparsehash-dev
+```
+Fedora: 
+```bash
+sudo dnf install sparsehash-devel
+```
+Arch Linux
+```bash
+sudo pacman -S google-sparsehash
+```
 ```bash
 # Clone the repository
 git clone https://github.com/CalebisGross/TRELLIS-AMD
