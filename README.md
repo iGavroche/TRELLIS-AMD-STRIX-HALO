@@ -19,11 +19,13 @@ This is a fork of [Microsoft TRELLIS](https://github.com/microsoft/TRELLIS) modi
 ## Requirements
 
 - AMD GPU (tested: RX 7800 XT (RDNA3, gfx1101), Strix Halo (RDNA 3.5, gfx1151))
-- ROCm 6.4+ 
+- ROCm 6.4+ (ROCm 7.0+ recommended for gfx1151)
 - Python 3.10+
 - ~16GB VRAM recommended
 
 **Architecture Support:** The installer automatically detects your GPU architecture (gfx1100, gfx1101, gfx1150, gfx1151, etc.) and compiles optimized code for your specific GPU. RDNA 3.5 (gfx1151) benefits from enhanced features like larger vector register files.
+
+**PyTorch for gfx1151:** For Strix Halo (gfx1151), PyTorch nightlies have better experimental support than stable builds. The installer will prompt you to use nightlies when gfx1151 is detected. You can also force nightlies with: `USE_PYTORCH_NIGHTLY=1 ./install_amd.sh`
 
 ## Quick Start
 
