@@ -35,9 +35,11 @@ else
 fi
 
 # Find GPU architecture
+# Supports RDNA3 (gfx1100/gfx1101), RDNA 3.5 (gfx1150/gfx1151), and other AMD architectures
 GPU_ARCH=$(rocminfo | grep -o 'gfx[0-9a-z]*' | head -1)
 if [ -z "$GPU_ARCH" ]; then
-    echo "WARNING: Could not detect GPU architecture, defaulting to gfx1100"
+    echo "WARNING: Could not detect GPU architecture via rocminfo, defaulting to gfx1100"
+    echo "         Supported architectures include: gfx1100, gfx1101, gfx1150, gfx1151, etc."
     GPU_ARCH="gfx1100"
 fi
 

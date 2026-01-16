@@ -2,7 +2,7 @@
 
 **TRELLIS running on AMD GPUs with ROCm** - Image to 3D Asset Generation
 
-This is a fork of [Microsoft TRELLIS](https://github.com/microsoft/TRELLIS) modified to run on AMD consumer GPUs (tested on RX 7800 XT with ROCm 6.4.2).
+This is a fork of [Microsoft TRELLIS](https://github.com/microsoft/TRELLIS) modified to run on AMD consumer GPUs (tested on RX 7800 XT (gfx1101) and Strix Halo (gfx1151) with ROCm 6.4.2+). The codebase automatically detects your GPU architecture and optimizes compilation accordingly.
 
 ## Features
 
@@ -18,10 +18,12 @@ This is a fork of [Microsoft TRELLIS](https://github.com/microsoft/TRELLIS) modi
 
 ## Requirements
 
-- AMD GPU (tested: RX 7800 XT, RDNA3)
+- AMD GPU (tested: RX 7800 XT (RDNA3, gfx1101), Strix Halo (RDNA 3.5, gfx1151))
 - ROCm 6.4+ 
 - Python 3.10+
 - ~16GB VRAM recommended
+
+**Architecture Support:** The installer automatically detects your GPU architecture (gfx1100, gfx1101, gfx1150, gfx1151, etc.) and compiles optimized code for your specific GPU. RDNA 3.5 (gfx1151) benefits from enhanced features like larger vector register files.
 
 ## Quick Start
 
