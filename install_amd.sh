@@ -1,7 +1,7 @@
 #!/bin/bash
 # TRELLIS-AMD Installation Script
 # One-click installer for AMD GPUs with ROCm
-# Tested on: AMD RX 7800 XT, ROCm 6.4.2, Ubuntu
+# Tested on: AMD RX 7800 XT (gfx1101), Strix Halo (gfx1151), ROCm 6.4.2, Ubuntu
 
 set -e
 
@@ -71,7 +71,8 @@ echo "[7/8] Installing torchsparse with GPU support..."
 cd extensions/torchsparse
 rm -rf build *.egg-info 2>/dev/null || true
 # FORCE_CUDA=1 is required to build the HIP/GPU backend
-PYTORCH_ROCM_ARCH=gfx1100 ROCM_HOME=/opt/rocm FORCE_CUDA=1 pip install . --no-build-isolation
+# Use detected GPU architecture for optimal performance
+PYTORCH_ROCM_ARCH=${GPU_ARCH} ROCM_HOME=/opt/rocm FORCE_CUDA=1 pip install . --no-build-isolation
 cd ../..
 
 echo ""

@@ -14,11 +14,53 @@ from torch.utils.cpp_extension import CUDAExtension, BuildExtension
 import os
 import re
 import glob
+import subprocess
 import torch
 
 # Check if we're running on ROCm/HIP
 is_rocm = hasattr(torch.version, 'hip') and torch.version.hip is not None
 base_dir = os.path.dirname(os.path.abspath(__file__))
+
+def detect_gpu_architecture():
+    """Detect GPU architecture for ROCm builds.
+    
+    Priority:
+    1. PYTORCH_ROCM_ARCH environment variable
+    2. rocminfo command output
+    3. Default to gfx1100 if detection fails
+    
+    Returns:
+        str: GPU architecture identifier (e.g., 'gfx1100', 'gfx1101', 'gfx1151')
+    """
+    # Check environment variable first
+    env_arch = os.environ.get('PYTORCH_ROCM_ARCH')
+    if env_arch:
+        print(f"[HIP] Using GPU architecture from PYTORCH_ROCM_ARCH: {env_arch}")
+        return env_arch
+    
+    # Try to detect via rocminfo
+    try:
+        result = subprocess.run(
+            ['rocminfo'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            # Extract first gfx architecture found
+            import re
+            match = re.search(r'gfx[0-9a-z]+', result.stdout)
+            if match:
+                arch = match.group(0)
+                print(f"[HIP] Detected GPU architecture via rocminfo: {arch}")
+                return arch
+    except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.SubprocessError):
+        pass
+    
+    # Default fallback
+    print("[HIP] Could not detect GPU architecture, defaulting to gfx1100")
+    print("[HIP] To specify manually, set PYTORCH_ROCM_ARCH environment variable")
+    return "gfx1100"
 
 def fix_hipify_issues(content):
     """Fix issues in hipified files for HIP/ROCm compatibility."""
@@ -82,16 +124,18 @@ if is_rocm:
             os.path.join(base_dir, "ext.cpp"),
         ]
         
-        # Force compile only for gfx1100 to avoid multi-arch issues
+        # Detect GPU architecture dynamically for optimal performance
+        gpu_arch = detect_gpu_architecture()
         extra_compile_args = {
             "nvcc": [
                 "-I" + os.path.join(base_dir, "third_party/glm/"),
                 "-I" + hip_rasterizer_dir,  # For headers
-                "--offload-arch=gfx1100",  # Force single architecture
+                f"--offload-arch={gpu_arch}",  # Use detected architecture (supports gfx1100, gfx1101, gfx1150, gfx1151, etc.)
                 "-fgpu-rdc",  # Enable GPU relocatable device code
             ]
         }
         print(f"[HIP] Using pre-fixed hipified sources from {hip_rasterizer_dir}")
+        print(f"[HIP] Compiling for architecture: {gpu_arch}")
     else:
         # First run - use original .cu files, hipify will generate them
         sources = [

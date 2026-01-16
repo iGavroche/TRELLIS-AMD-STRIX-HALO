@@ -18,11 +18,20 @@ TORCH_LIB="${VENV_DIR}/lib/python3.10/site-packages/torch/lib"
 # Create build directory
 mkdir -p "${BUILD_DIR}"
 
+# Detect GPU architecture (supports RDNA3, RDNA 3.5, and other AMD architectures)
+GPU_ARCH=$(rocminfo | grep -o 'gfx[0-9a-z]*' | head -1)
+if [ -z "$GPU_ARCH" ]; then
+    echo "WARNING: Could not detect GPU architecture via rocminfo, defaulting to gfx1100"
+    echo "         Supported architectures include: gfx1100, gfx1101, gfx1150, gfx1151, etc."
+    GPU_ARCH="gfx1100"
+fi
+
 echo "=== Building diff-gaussian-rasterization with manual hipcc (NO -fno-gpu-rdc) ==="
+echo "Detected GPU architecture: $GPU_ARCH"
 
 # Compile flags - NOTE: we do NOT use -fno-gpu-rdc!
 HIPCC="${ROCM_DIR}/bin/hipcc"
-COMMON_FLAGS="-fPIC -O3 -std=c++17 --offload-arch=gfx1101"
+COMMON_FLAGS="-fPIC -O3 -std=c++17 --offload-arch=${GPU_ARCH}"
 COMMON_FLAGS+=" -D__HIP_PLATFORM_AMD__=1 -DUSE_ROCM=1 -DHIPBLAS_V2"
 COMMON_FLAGS+=" -DCUDA_HAS_FP16=1 -D__HIP_NO_HALF_OPERATORS__=1 -D__HIP_NO_HALF_CONVERSIONS__=1"
 COMMON_FLAGS+=" -DTORCH_API_INCLUDE_EXTENSION_H -DTORCH_EXTENSION_NAME=_C -D_GLIBCXX_USE_CXX11_ABI=1"

@@ -12,10 +12,12 @@ This guide documents the complete process of enabling [Microsoft TRELLIS](https:
 
 | Component | Version/Model |
 |-----------|---------------|
-| GPU | AMD RX 7800 XT (RDNA3, gfx1101) |
-| Driver | ROCm 6.4.2 |
+| GPU | AMD RX 7800 XT (RDNA3, gfx1101), Strix Halo (RDNA 3.5, gfx1151) |
+| Driver | ROCm 6.4.2+ |
 | PyTorch | 2.9.1+rocm6.4 |
 | OS | Linux |
+
+**Note:** The codebase now automatically detects GPU architecture (gfx1100, gfx1101, gfx1150, gfx1151, etc.) and optimizes compilation accordingly. RDNA 3.5 (gfx1151) benefits from enhanced features like larger vector register files (192 KB vs 128 KB per SIMD).
 
 ### What This Enables
 
