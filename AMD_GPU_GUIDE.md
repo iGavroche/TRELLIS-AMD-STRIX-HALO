@@ -294,7 +294,7 @@ pip install . --no-build-isolation
 
 # 6. Run TRELLIS
 cd /path/to/TRELLIS
-ATTN_BACKEND=sdpa XFORMERS_DISABLED=1 SPARSE_BACKEND=torchsparse python app.py
+TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1 ATTN_BACKEND=sdpa XFORMERS_DISABLED=1 SPARSE_BACKEND=torchsparse python app.py
 ```
 
 ---
@@ -302,10 +302,13 @@ ATTN_BACKEND=sdpa XFORMERS_DISABLED=1 SPARSE_BACKEND=torchsparse python app.py
 ## Environment Variables
 
 ```bash
-export ATTN_BACKEND=sdpa           # Use PyTorch SDPA instead of xformers
-export XFORMERS_DISABLED=1         # Disable xformers (CUDA-only)
-export SPARSE_BACKEND=torchsparse  # Use torchsparse for sparse convolutions
+export TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1  # Enable experimental attention on AMD GPUs (required for gfx1151)
+export ATTN_BACKEND=sdpa                          # Use PyTorch SDPA instead of xformers
+export XFORMERS_DISABLED=1                        # Disable xformers (CUDA-only)
+export SPARSE_BACKEND=torchsparse                 # Use torchsparse for sparse convolutions
 ```
+
+**Note:** `TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1` is required for AMD GPUs (especially gfx1151) to enable Flash Efficient and Mem Efficient attention backends. Without this, you'll see warnings about experimental attention features.
 
 ---
 

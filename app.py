@@ -74,6 +74,17 @@ import imageio
 from easydict import EasyDict as edict
 from PIL import Image
 
+# Pre-import diff_gaussian_rasterization to ensure library is loaded with correct paths
+# This must happen after library path is set but before other imports that might trigger it
+# The lazy import in gaussian_render.py will fail if library path isn't set, so import it here
+try:
+    import diff_gaussian_rasterization
+    # Force import of the C extension to ensure library is loaded
+    from diff_gaussian_rasterization import _C
+except (ImportError, Exception) as e:
+    # If import fails here, it will fail later too, but at least we tried early
+    pass
+
 from trellis.pipelines import TrellisImageTo3DPipeline
 from trellis.representations import Gaussian, MeshExtractResult
 from trellis.utils import render_utils, postprocessing_utils
