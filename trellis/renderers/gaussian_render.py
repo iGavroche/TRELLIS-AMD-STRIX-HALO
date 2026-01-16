@@ -53,8 +53,23 @@ def render(viewpoint_camera, pc : Gaussian, pipe, bg_color : torch.Tensor, scali
     
     Background tensor (bg_color) must be on GPU!
     """
-    # lazy import
+    # lazy import - ensure library path is set before importing
     if 'GaussianRasterizer' not in globals():
+        # Ensure ROCm library path is set (in case this is called before app.py setup)
+        import os
+        existing_ld_path = os.environ.get('LD_LIBRARY_PATH', '')
+        if '/opt/rocm' not in existing_ld_path and '/.local/lib' not in existing_ld_path:
+            rocm_lib_paths = []
+            for rocm_base in ['/opt/rocm-7.1.1/lib', '/opt/rocm/lib']:
+                if os.path.exists(rocm_base):
+                    rocm_lib_paths.append(rocm_base)
+            user_lib_dir = os.path.join(os.path.expanduser('~'), '.local', 'lib')
+            if os.path.exists(user_lib_dir):
+                rocm_lib_paths.insert(0, user_lib_dir)
+            if rocm_lib_paths:
+                rocm_paths = ':'.join(rocm_lib_paths)
+                os.environ['LD_LIBRARY_PATH'] = f"{rocm_paths}:{existing_ld_path}" if existing_ld_path else rocm_paths
+        
         from diff_gaussian_rasterization import GaussianRasterizer, GaussianRasterizationSettings
     
     # Create zero tensor. We will use it to make pytorch return gradients of the 2D (screen-space) means
