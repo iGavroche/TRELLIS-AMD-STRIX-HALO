@@ -32,9 +32,14 @@ This guide documents the complete process of enabling [Microsoft TRELLIS](https:
 
 ## Prerequisites
 
-1. **ROCm 6.4.x** installed and configured
-2. **PyTorch for ROCm** (`pip install torch torchvision --index-url https://download.pytorch.org/whl/rocm6.4`)
+1. **ROCm 6.4.x** installed and configured (ROCm 7.0+ recommended for gfx1151)
+2. **PyTorch for ROCm**:
+   - **Stable builds** (gfx1100/gfx1101): `pip install torch torchvision --index-url https://download.pytorch.org/whl/rocm6.4`
+   - **Nightly builds** (gfx1151 recommended): `pip install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/rocm6.4`
+   - The installer script will automatically detect gfx1151 and prompt for nightlies
 3. **TRELLIS repository** cloned with dependencies
+
+**Note for gfx1151 (Strix Halo):** PyTorch nightlies have better experimental support for RDNA 3.5. Stable ROCm 6.4 builds may have issues with BatchNorm2d and some other operations. If you encounter problems, try using nightlies: `USE_PYTORCH_NIGHTLY=1 ./install_amd.sh`
 
 ---
 
