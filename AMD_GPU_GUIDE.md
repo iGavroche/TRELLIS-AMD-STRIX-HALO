@@ -35,11 +35,15 @@ This guide documents the complete process of enabling [Microsoft TRELLIS](https:
 1. **ROCm 6.4.x** installed and configured (ROCm 7.0+ recommended for gfx1151)
 2. **PyTorch for ROCm**:
    - **Stable builds** (gfx1100/gfx1101): `pip install torch torchvision --index-url https://download.pytorch.org/whl/rocm6.4`
-   - **Nightly builds** (gfx1151 recommended): `pip install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/rocm6.4`
-   - The installer script will automatically detect gfx1151 and prompt for nightlies
+   - **Architecture-specific nightlies** (gfx1151/gfx1150, recommended): 
+     ```bash
+     uv pip install --index-url https://rocm.nightlies.amd.com/v2/gfx1151/ --pre torch torchvision --upgrade
+     ```
+     Or with pip: `pip install --pre torch torchvision --index-url https://rocm.nightlies.amd.com/v2/gfx1151/ --upgrade`
+   - The installer script automatically detects gfx1151 and uses architecture-specific nightlies
 3. **TRELLIS repository** cloned with dependencies
 
-**Note for gfx1151 (Strix Halo):** PyTorch nightlies have better experimental support for RDNA 3.5. Stable ROCm 6.4 builds may have issues with BatchNorm2d and some other operations. If you encounter problems, try using nightlies: `USE_PYTORCH_NIGHTLY=1 ./install_amd.sh`
+**Note for gfx1151 (Strix Halo):** AMD provides architecture-specific PyTorch nightlies optimized for gfx1151. The installer automatically uses these. Manual install: `uv pip install --index-url https://rocm.nightlies.amd.com/v2/gfx1151/ --pre torch torchvision --upgrade`. Stable ROCm 6.4 builds may have issues with BatchNorm2d and other operations.
 
 ---
 

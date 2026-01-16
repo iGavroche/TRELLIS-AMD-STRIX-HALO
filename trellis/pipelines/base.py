@@ -37,11 +37,49 @@ class Pipeline:
             args = json.load(f)['args']
 
         _models = {}
+        # Extract base repo_id from path for relative model paths
+        # If path looks like a HuggingFace repo (has /), use it as base
+        if '/' in path and not os.path.exists(f"{path}/pipeline.json"):
+            base_repo_id = path
+        else:
+            base_repo_id = None
+        
         for k, v in args['models'].items():
-            try:
-                _models[k] = models.from_pretrained(f"{path}/{v}")
-            except:
-                _models[k] = models.from_pretrained(v)
+            # Try with relative path first if we have base_repo_id (avoids duplicating repo_id)
+            if base_repo_id and v:
+                try:
+                    # Use relative path with base_repo_id
+                    _models[k] = models.from_pretrained(v, base_repo_id=base_repo_id)
+                except Exception as e:
+                    # Check if it's a download/URL error vs a runtime error
+                    from huggingface_hub.errors import RepositoryNotFoundError, EntryNotFoundError
+                    from requests.exceptions import HTTPError
+                    
+                    is_download_error = isinstance(e, (RepositoryNotFoundError, EntryNotFoundError, HTTPError)) or \
+                                       "404" in str(e) or "Not Found" in str(e) or "Repository Not Found" in str(e)
+                    
+                    if is_download_error:
+                        # Try with full path as fallback
+                        try:
+                            full_path = f"{path}/{v}" if v else path
+                            print(f"Warning: Failed to load model {k} from {base_repo_id}/{v}, trying full path {full_path}")
+                            _models[k] = models.from_pretrained(full_path)
+                        except Exception as e2:
+                            # Last resort: try as absolute path
+                            print(f"Warning: Failed to load model {k} from {full_path}, trying absolute path: {e2}")
+                            _models[k] = models.from_pretrained(v)
+                    else:
+                        # If it's not a download error (e.g., HIP error), re-raise it
+                        print(f"Error loading model {k} from {base_repo_id}/{v}: {e}")
+                        raise
+            else:
+                # No base_repo_id or empty v, try as absolute path
+                full_path = f"{path}/{v}" if v else path
+                try:
+                    _models[k] = models.from_pretrained(full_path)
+                except Exception as e:
+                    print(f"Error loading model {k} from {full_path}: {e}")
+                    raise
 
         new_pipeline = Pipeline(_models)
         new_pipeline._pretrained_args = args
