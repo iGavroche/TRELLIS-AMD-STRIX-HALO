@@ -86,13 +86,15 @@ _SPARSE_CONV_MODELS = {
 }
 
 
-def from_pretrained(path: str, **kwargs):
+def from_pretrained(path: str, base_repo_id: str = None, revision: str = None, **kwargs):
     """
     Load a model from a pretrained checkpoint.
 
     Args:
         path: The path to the checkpoint. Can be either local path or a Hugging Face model name.
               NOTE: config file and model file should take the name f'{path}.json' and f'{path}.safetensors' respectively.
+        base_repo_id: Optional base repository ID to use when path is relative (e.g., "microsoft/TRELLIS-image-large")
+        revision: Optional revision/branch to use (e.g., "refs/pr/16" or "main"). If None, tries main first, then common PR branches.
         **kwargs: Additional arguments for the model constructor.
     """
     import os
@@ -105,11 +107,49 @@ def from_pretrained(path: str, **kwargs):
         model_file = f"{path}.safetensors"
     else:
         from huggingface_hub import hf_hub_download
+        from huggingface_hub.errors import EntryNotFoundError
         path_parts = path.split('/')
-        repo_id = f'{path_parts[0]}/{path_parts[1]}'
-        model_name = '/'.join(path_parts[2:])
-        config_file = hf_hub_download(repo_id, f"{model_name}.json")
-        model_file = hf_hub_download(repo_id, f"{model_name}.safetensors")
+        
+        # Determine repo_id and model_name
+        # Check if path already contains repo_id (starts with owner/repo)
+        if len(path_parts) >= 2 and base_repo_id and path.startswith(base_repo_id):
+            # Path already contains repo_id, extract it
+            repo_id = f'{path_parts[0]}/{path_parts[1]}'
+            model_name = '/'.join(path_parts[2:]) if len(path_parts) > 2 else ''
+        elif base_repo_id:
+            # Use base_repo_id and treat path as relative
+            repo_id = base_repo_id
+            model_name = path
+        elif len(path_parts) >= 2:
+            # Absolute path: repo_owner/repo_name/path/to/model
+            repo_id = f'{path_parts[0]}/{path_parts[1]}'
+            model_name = '/'.join(path_parts[2:]) if len(path_parts) > 2 else ''
+        else:
+            # Fallback: assume it's a relative path in the default repo
+            # This shouldn't happen, but handle it gracefully
+            raise ValueError(f"Invalid model path format: {path}. Expected format: 'repo_owner/repo_name/path/to/model' or provide base_repo_id for relative paths.")
+        
+        # Try to download with specified revision, or try common revisions
+        revisions_to_try = [revision] if revision else ["main", "refs/pr/16", "refs/pr/15", "refs/pr/14"]
+        
+        config_file = None
+        model_file = None
+        last_error = None
+        
+        for rev in revisions_to_try:
+            if rev is None:
+                continue
+            try:
+                config_file = hf_hub_download(repo_id, f"{model_name}.json" if model_name else "model.json", revision=rev)
+                model_file = hf_hub_download(repo_id, f"{model_name}.safetensors" if model_name else "model.safetensors", revision=rev)
+                if config_file and model_file:
+                    break
+            except (EntryNotFoundError, Exception) as e:
+                last_error = e
+                continue
+        
+        if not config_file or not model_file:
+            raise EntryNotFoundError(f"Could not find model files for {repo_id}/{model_name} in any revision. Last error: {last_error}")
 
     with open(config_file, 'r') as f:
         config = json.load(f)

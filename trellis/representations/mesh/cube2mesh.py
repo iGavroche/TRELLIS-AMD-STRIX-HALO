@@ -65,9 +65,28 @@ class SparseFeatures2Mesh:
         self.res = res
         self.mesh_extractor = FlexiCubes(device=device)
         self.sdf_bias = -1.0 / res
-        verts, cube = construct_dense_grid(self.res, self.device)
-        self.reg_c = cube.to(self.device)
-        self.reg_v = verts.to(self.device)
+        
+        # Try to create grid on GPU, fallback to CPU if GPU not available/compatible
+        try:
+            verts, cube = construct_dense_grid(self.res, self.device)
+            self.reg_c = cube.to(self.device)
+            self.reg_v = verts.to(self.device)
+        except (torch.cuda.hip.hipError, RuntimeError, Exception) as e:
+            if "invalid device function" in str(e).lower() or "hipErrorInvalidDeviceFunction" in str(e):
+                import warnings
+                warnings.warn(
+                    f"GPU device '{device}' not compatible. Creating grid on CPU. "
+                    f"This may indicate PyTorch needs to be reinstalled for your GPU architecture. Error: {e}",
+                    UserWarning
+                )
+                # Fallback to CPU
+                verts, cube = construct_dense_grid(self.res, 'cpu')
+                self.reg_c = cube
+                self.reg_v = verts
+                self.device = 'cpu'  # Update device to CPU
+            else:
+                raise
+        
         self.use_color = use_color
         self._calc_layout()
     

@@ -1,7 +1,71 @@
+# Set up ROCm library path FIRST, before any imports
+# This ensures all extensions (nvdiffrast, torchsparse, etc.) can find libamdhip64.so
+import os
+import sys
+
+# Auto-detect ROCm installation paths
+rocm_lib_paths = []
+# Check common ROCm installation locations
+for rocm_base in ['/opt/rocm', '/opt/rocm-7.1.1', '/opt/rocm-7.1', '/opt/rocm-7.0', '/opt/rocm-6.4']:
+    lib_path = os.path.join(rocm_base, 'lib')
+    if os.path.exists(lib_path) and os.path.exists(os.path.join(lib_path, 'libamdhip64.so')):
+        rocm_lib_paths.append(lib_path)
+# Also check /opt/rocm* pattern
+if not rocm_lib_paths:
+    import glob
+    for rocm_dir in glob.glob('/opt/rocm*'):
+        lib_path = os.path.join(rocm_dir, 'lib')
+        if os.path.exists(lib_path) and os.path.exists(os.path.join(lib_path, 'libamdhip64.so')):
+            rocm_lib_paths.append(lib_path)
+
+existing_ld_path = os.environ.get('LD_LIBRARY_PATH', '')
+if rocm_lib_paths:
+    rocm_paths = ':'.join(rocm_lib_paths)
+    if existing_ld_path:
+        os.environ['LD_LIBRARY_PATH'] = f"{rocm_paths}:{existing_ld_path}"
+    else:
+        os.environ['LD_LIBRARY_PATH'] = rocm_paths
+    
+    # Create symlink for .so.6 -> .so.7 compatibility in user-writable location
+    # Some extensions were compiled against .so.6 but can use .so.7
+    user_lib_dir = os.path.join(os.path.expanduser('~'), '.local', 'lib')
+    os.makedirs(user_lib_dir, exist_ok=True)
+    symlink_path = os.path.join(user_lib_dir, 'libamdhip64.so.6')
+    
+    # Find .so.7 library to symlink
+    so7_path = None
+    for lib_path in rocm_lib_paths:
+        hip_lib_7 = os.path.join(lib_path, 'libamdhip64.so.7')
+        if os.path.exists(hip_lib_7):
+            so7_path = hip_lib_7
+            break
+    
+    if so7_path and not os.path.exists(symlink_path):
+        try:
+            os.symlink(so7_path, symlink_path)
+        except (OSError, FileExistsError):
+            pass  # Symlink might already exist or creation failed
+    
+    # Add user lib directory to library path if symlink exists
+    if os.path.exists(symlink_path):
+        os.environ['LD_LIBRARY_PATH'] = f"{user_lib_dir}:{os.environ.get('LD_LIBRARY_PATH', '')}"
+    
+    # Preload libamdhip64.so.7 to ensure it's available for all extensions
+    import ctypes
+    if so7_path:
+        try:
+            ctypes.CDLL(so7_path, mode=ctypes.RTLD_GLOBAL)
+        except:
+            pass
+    
+    # Also set dlopen flags for better library loading
+    if hasattr(sys, 'setdlopenflags'):
+        # RTLD_GLOBAL = 0x00100, RTLD_NOW = 0x00002
+        sys.setdlopenflags(0x00100 | 0x00002)
+
 import gradio as gr
 from gradio_litmodel3d import LitModel3D
 
-import os
 import shutil
 from typing import *
 import torch
@@ -9,6 +73,7 @@ import numpy as np
 import imageio
 from easydict import EasyDict as edict
 from PIL import Image
+
 from trellis.pipelines import TrellisImageTo3DPipeline
 from trellis.representations import Gaussian, MeshExtractResult
 from trellis.utils import render_utils, postprocessing_utils
@@ -30,6 +95,60 @@ if os.environ.get('SPARSE_BACKEND') == 'torchsparse' and hasattr(torch.version, 
         print("[TORCHSPARSE] Configured for HIP: GatherScatter dataflow, mode0")
     except Exception as e:
         print(f"[TORCHSPARSE] Warning: Could not configure for HIP: {e}")
+
+# Check PyTorch GPU compatibility (especially for gfx1151)
+def check_pytorch_gpu_compatibility():
+    """Check if PyTorch can create tensors on GPU. Returns (compatible, error_message)."""
+    if not torch.cuda.is_available():
+        return False, "CUDA/HIP is not available. Check ROCm installation."
+    
+    try:
+        # Try to create a simple tensor on GPU
+        test_tensor = torch.arange(10, device='cuda')
+        _ = test_tensor + 1  # Try a simple operation
+        del test_tensor
+        torch.cuda.synchronize()
+        return True, None
+    except Exception as e:
+        error_str = str(e).lower()
+        if "invalid device function" in error_str or "hiperrorinvaliddevicefunction" in error_str:
+            # Detect GPU architecture
+            try:
+                import subprocess
+                result = subprocess.run(['rocminfo'], capture_output=True, text=True, timeout=5)
+                gpu_arch = None
+                if result.returncode == 0:
+                    import re
+                    match = re.search(r'gfx[0-9a-z]+', result.stdout)
+                    if match:
+                        gpu_arch = match.group(0)
+                
+                if gpu_arch in ['gfx1151', 'gfx1150']:
+                    error_msg = f"""
+ERROR: PyTorch is not compiled for your GPU architecture ({gpu_arch}).
+
+For gfx1151/gfx1150 (Strix Halo), you need architecture-specific PyTorch nightlies.
+
+Install with:
+  uv pip install --index-url https://rocm.nightlies.amd.com/v2/{gpu_arch}/ --pre torch torchvision --upgrade
+
+Or with pip:
+  pip install --pre torch torchvision --index-url https://rocm.nightlies.amd.com/v2/{gpu_arch}/ --upgrade
+
+Then restart the application.
+"""
+                else:
+                    error_msg = f"""
+ERROR: PyTorch is not compiled for your GPU architecture ({gpu_arch or 'unknown'}).
+
+Please reinstall PyTorch for ROCm with support for your GPU architecture.
+Current PyTorch version: {torch.__version__}
+"""
+                return False, error_msg
+            except:
+                return False, "PyTorch GPU compatibility check failed. Please ensure PyTorch is compiled for your GPU architecture."
+        else:
+            return False, f"GPU compatibility check failed: {e}"
 
 
 MAX_SEED = np.iinfo(np.int32).max
@@ -436,6 +555,16 @@ with gr.Blocks(delete_cache=(600, 600)) as demo:
 
 # Launch the Gradio app
 if __name__ == "__main__":
+    # Check PyTorch GPU compatibility before loading models
+    compatible, error_msg = check_pytorch_gpu_compatibility()
+    if not compatible:
+        print("=" * 80)
+        print(error_msg)
+        print("=" * 80)
+        import sys
+        sys.exit(1)
+    
+    print("[INFO] PyTorch GPU compatibility check passed. Loading models...")
     pipeline = TrellisImageTo3DPipeline.from_pretrained("microsoft/TRELLIS-image-large")
     pipeline.cuda()
     demo.launch(server_name="0.0.0.0", share=True)
